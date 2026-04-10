@@ -139,9 +139,11 @@ void loop() {
   updateThrottle();
   updateRpm();
 
-  // Apply throttle to both motors unless one button disables it
-  analogWrite(PWM,  (receivedRight == 0 ? receivedThrottle : 180));
-  analogWrite(PWM2, (receivedLeft  == 0 ? receivedThrottle : 180));
+  uint8_t pwmRight = (uint8_t)constrain((int)(rightThrottle + 0.5f), 0, 255);
+  uint8_t pwmLeft  = (uint8_t)constrain((int)(leftThrottle  + 0.5f), 0, 255);
+
+  analogWrite(PWM,  pwmRight);
+  analogWrite(PWM2, pwmLeft);
 
   // Speed (km/h) derived from wheel diameter and current RPM, kept here for tuning.
   float wheelCircumference = (wheelDiameter / 100.0) * 3.14159265; // in meters
