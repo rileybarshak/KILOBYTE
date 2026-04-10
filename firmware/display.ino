@@ -11,11 +11,17 @@
 #define LEFT 6
 #define RIGHT 7
 
+const uint8_t CONTROL_I2C_ADDRESS = 0x08;
+
 // -------------------- LCD --------------------
 LiquidCrystal_I2C lcd(0x27, 20, 4);
 
 unsigned long lastLcdUpdate = 0;
 const unsigned long lcdUpdateInterval = 100;
+
+unsigned long lastRpmPoll = 0;
+const unsigned long rpmPollInterval = 100;
+uint16_t currentRpm = 0;
 
 // -------------------- Reverse Beeper --------------------
 unsigned long lastBeepTime = 0;
@@ -27,6 +33,8 @@ const unsigned long beepDuration = 800;
 // -------------------- Throttle Smoothing --------------------
 const float smoothFactor = 0.10;
 float smoothedThrottle = 0;
+
+const float wheelDiameter = 24.13;   // wheel diameter in centimeters (9.5inch = 24.13cm)
 
 float smooth(float previous, float current) {
   return previous + smoothFactor * (current - previous);
@@ -60,6 +68,15 @@ void drawThrottleBar(int throttlePercent, int totalBlocks) {
   lcd.print("]");
 }
 
+void requestRpm() {
+  Wire.requestFrom((int)CONTROL_I2C_ADDRESS, 2);
+  if (Wire.available() >= 2) {
+    uint8_t low = Wire.read();
+    uint8_t high = Wire.read();
+    currentRpm = (uint16_t)(low | ((uint16_t)high << 8));
+  }
+}
+
 void update_lcd(bool reverseActive) {
   int throttlePercent = map(smoothedThrottle, 1023, 0, 0, 100);
 
@@ -70,15 +87,21 @@ void update_lcd(bool reverseActive) {
     lcd.print("FWD ");
     drawThrottleBar(throttlePercent, 10);  // high-res bar
     lcd.print(" ");                        // padding
+    lcd.print(throttlePercent);
+    lcd.print("%");
   }
 
-  lcd.print(throttlePercent);
-  lcd.print("%");
+  float wheelCircumference = (wheelDiameter / 100.0) * 3.14159265;
+  float speedKmh = (currentRpm * wheelCircumference * 60.0) / 1000.0;
 
   // placeholder, will be speedometer
   lcd.setCursor(0, 3);
-  drawThrottleBar(throttlePercent, 18);
-
+  lcd.print("RPM:");
+  lcd.print(currentRpm);
+  lcd.print(" SPD:");
+  lcd.print(speedKmh, 1);
+  lcd.print("km/h ");
+}
 
   // -------------------- Reverse Beep --------------------
 void handleReverseBeep(bool reverseActive) {
@@ -100,6 +123,7 @@ void handleReverseBeep(bool reverseActive) {
   }
 }
 
+// -------------------- Startup Song --------------------
 void play_startup_song() {
   // Imperial March melody
   int melody[] = {
@@ -138,13 +162,21 @@ void play_startup_song() {
   delay(70);
 }
 
+// -------------------- I2C Packet --------------------
+bool sendPacket(byte throttle, byte leftBtn, byte rightBtn) {
+  Wire.beginTransmission(CONTROL_I2C_ADDRESS);
+  Wire.write(throttle);
+  Wire.write(leftBtn);
+  Wire.write(rightBtn);
+  byte status = Wire.endTransmission();
+  return (status == 0);
+}
 
   // -------------------- Setup --------------------
 void setup() {
   Wire.begin();
-
   lcd.init();
-  lcd.createChar(0, block0);
+
   lcd.createChar(1, block1);
   lcd.createChar(2, block2);
   lcd.createChar(3, block3);
@@ -158,8 +190,6 @@ void setup() {
 
   pinMode(LED, OUTPUT);
   pinMode(LED2, OUTPUT);
-  pinMode(PWM, OUTPUT);
-  pinMode(PWM2, OUTPUT);
   pinMode(BUZZER, OUTPUT);
 
   digitalWrite(LED, HIGH);
@@ -174,43 +204,33 @@ void setup() {
   Serial.begin(9600);
 }
 
-  // -------------------- I2C Packet --------------------
-  bool sendPacket(byte throttle, byte leftBtn, byte rightBtn) {
-    Wire.beginTransmission(8);
-    Wire.write(throttle);
-    Wire.write(leftBtn);
-    Wire.write(rightBtn);
-
-    byte status = Wire.endTransmission();
-    return (status == 0);
-  }
-
   // -------------------- Main Loop --------------------
 void loop() {
   unsigned long now = millis();
 
   smoothedThrottle = smooth(smoothedThrottle, analogRead(THROTTLE));
   bool reverseActive = !digitalRead(REVERSE);
-  int leftPressed = digitalRead(LEFT);
-  int rightPressed = digitalRead(RIGHT);
+  byte leftPressed = digitalRead(LEFT);
+  byte rightPressed = digitalRead(RIGHT);
 
   // Throttle mapping
   //  180 = zero throttle
   //  255 = full
-  //  0 = full rever
-  int driveThrottle = map(smoothedThrottle, 1023, 0, 180, 255);
+  //  0 = full reverse
+  int driveThrottle = map((int)smoothedThrottle, 1023, 0, 180, 255);
 
   if (reverseActive) {
     driveThrottle = 255 - driveThrottle;
   }
 
-  // Send packet to control unit
-  while (!sendPacket(driveThrottle, leftPressed, rightPressed)) {
-    left = 0;
-    right = 0;  // disable input
-    lcd.clear();
-    lcd.print("COMMUNICATION LOST");
-    delay(1000);
+  if (!sendPacket((byte)driveThrottle, leftPressed, rightPressed)) {
+    lcd.setCursor(0, 1);
+    lcd.print("COMMUNICATION LOST   ");
+  } else {
+    if (now - lastRpmPoll >= rpmPollInterval) {
+      requestRpm();
+      lastRpmPoll = now;
+    }
   }
 
   handleReverseBeep(reverseActive);

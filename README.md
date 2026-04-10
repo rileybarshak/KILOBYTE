@@ -42,7 +42,6 @@ The next iteration of Kilobyte introduces many structural and user interface imp
     - [x] Create new Arduino shield for power and all IO
   - [ ] Upgrade & enhance firmware
     - [ ] Show battery voltage and percentage on screen
-	- [ ] Implement master software shutoff switch
     - [x] Make UI more user friendly
     - [x] Add safeguards for when communication to control unit is lost
     - [x] Implement UI LEDs
@@ -53,8 +52,8 @@ The next iteration of Kilobyte introduces many structural and user interface imp
   - [x] Finalize mounting of all electronics and batteries
     - [x] Test mounting for strength and neatness
   - [x] Ensure all electronics are properly fused
-  - [ ] Neatly route power+communication wiring to display unit
-    - [ ] Design custom cable harness/mounting atachments
+  - [x] Neatly route power+communication wiring to display unit
+    - [x] Design custom cable harness/mounting atachments
   - [x] Cut a wooden board to mount electronics on
     - [x] Design battery mounting solution
 - Cosmetics
@@ -70,7 +69,7 @@ The next iteration of Kilobyte introduces many structural and user interface imp
 - Safety
   - [ ] Detect human presence on chariot, do not allow operation if not detector
   - [ ] Add configurable speed limiter
-  - [ ] Add a hardware battery disconnect
+  - [x] Add a hardware battery disconnect
   - [ ] Grip tape / bed liner for chariot
 - Cosmetics
   - [ ] clean and clear coat aluminum 
